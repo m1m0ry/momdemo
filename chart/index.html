@@ -18,7 +18,7 @@
         var myChart = echarts.init(document.getElementById('main'));
 
 
-        var ws = new WebSocket("ws://localhost:8080/ws/data");
+        var ws = new WebSocket("ws://localhost:8080/ws");
         //连接打开时触发 
         ws.onopen = function (evt) {
             console.log("Connection open ...");
@@ -26,18 +26,53 @@
         };
         
         var i=0;
+
+        var variances=new Array();
+        var nums=new Array();
+
         //接收到消息时触发  
         ws.onmessage = function (evt) {
             var obj = JSON.parse(evt.data);
+            //console.log(obj)
 
+            
+            variances.push(obj.variance);
+            nums.push(i);
+
+            if(i>=300){
+                variances.shift();
+                nums.shift();
+            }
+            i++;
             myChart.hideLoading();
             myChart.setOption({
                 xAxis: {
-                    data: [...Array(obj.length).keys()]
+                    data: nums
                 },
                 series: [{
-                    data: obj
-                }]
+                    name:'sign',
+                    data: obj.data,
+                    markLine:{
+                        data: [
+                            {
+                                name:'mean',
+                                yAxis: obj.mean,
+                            },
+                            {
+                                name:'max',
+                                yAxis: obj.max,
+                            },
+                            {
+                                name:'min',
+                                yAxis: obj.min,
+                            }
+                        ]
+                    }
+                },
+                {
+                    name:'variance',
+                    data: variances,
+                }],
             });
         };
         //连接关闭时触发  
@@ -49,11 +84,26 @@
         myChart.setOption({
             title: {
                 show: true,
-                text: "随机信号折线图",
+                text: "随机信号分析",
                 left: "center",
                 textStyle: {
                     fontSize: 30
                 },
+            },
+            tooltip: {
+                trigger: 'axis'
+            },
+            legend: {
+                left: 'left',
+                selectedMode : true,
+            },
+            toolbox: {
+                feature: {
+                    dataZoom: {
+                        yAxisIndex: 'none'
+                    },
+                    saveAsImage: {}
+                }
             },
             xAxis: {
                 type: 'category',
@@ -62,9 +112,17 @@
                 type: 'value'
             },
             series: [{
+                name:'sign',
                 data: [],
                 type: 'line',
+                symbol: "none",
                 //smooth: true
+            },
+            {
+                name:'variance',
+                data: [],
+                type:'line',
+                smooth: true,
             }],
             animation: false,
         });

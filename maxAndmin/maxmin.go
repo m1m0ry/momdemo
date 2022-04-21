@@ -92,8 +92,8 @@ func main() {
 
 			bytes := make([][]byte, 2)
 
-			bytes[0]=Float64ToByte(max)
-			bytes[1]=Float64ToByte(min)
+			bytes[0]=append(Float64ToByte(max),0)
+			bytes[1]=append(Float64ToByte(min),1)
 
 			err := producer.MultiPublishAsync("maxmin", bytes, doChan)
 			if err != nil {
