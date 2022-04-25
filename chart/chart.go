@@ -96,7 +96,7 @@ func main() {
 		str, _ := json.Marshal(web.Data)
 		c.String(http.StatusOK, string(str))
 	})
-	r.Run(":8080")
+	r.Run(":3000")
 
 	// wait for signal to exit
 	sigChan := make(chan os.Signal, 1)
