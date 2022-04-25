@@ -2,18 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/nsqio/go-nsq"
-
-	"github.com/m1m0ry/mom/web"
+	"github.com/m1m0ry/mom/analysis"
 )
 
 var upGrader = websocket.Upgrader{
@@ -32,7 +26,7 @@ func websocketapi(c *gin.Context) {
 	defer ws.Close()
 	for {
 		//写入ws数据
-		str, _ := json.Marshal(web.Data)
+		str, _ := json.Marshal(analysis.Data)
 		err = ws.WriteMessage(1, str)
 		if err != nil {
 			break
@@ -42,48 +36,8 @@ func websocketapi(c *gin.Context) {
 }
 
 func main() {
-	// Instantiate a consumer that will subscribe to the provided channel.
 
-	config := nsq.NewConfig()
-
-	consumer_sign, err := nsq.NewConsumer("rand", "chart", config)
-	if err != nil {
-		log.Fatal(err)
-	}
-	consumer_mean, err := nsq.NewConsumer("mean", "chart", config)
-	if err != nil {
-		log.Fatal(err)
-	}
-	consumer_variance, err := nsq.NewConsumer("variance", "chart", config)
-	if err != nil {
-		log.Fatal(err)
-	}
-	consumer_maxmin, err := nsq.NewConsumer("maxmin", "chart", config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	consumer_sign.AddHandler(&web.MyMessageHandler{})
-	consumer_mean.AddHandler(&web.MeanHandler{})
-	consumer_variance.AddHandler(&web.VarianceHandler{})
-	consumer_maxmin.AddHandler(&web.MaxAndminHandler{})
-
-	err = consumer_sign.ConnectToNSQLookupd("localhost:4161")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = consumer_variance.ConnectToNSQLookupd("localhost:4161")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = consumer_mean.ConnectToNSQLookupd("localhost:4161")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = consumer_maxmin.ConnectToNSQLookupd("localhost:4161")
-	if err != nil {
-		log.Fatal(err)
-	}
+	go analysis.Init()
 
 	r := gin.Default()
 	r.LoadHTMLGlob("index.html")
@@ -93,19 +47,8 @@ func main() {
 		c.HTML(http.StatusOK, "index.html", gin.H{})
 	})
 	r.GET("/data", func(c *gin.Context) {
-		str, _ := json.Marshal(web.Data)
+		str, _ := json.Marshal(analysis.Data)
 		c.String(http.StatusOK, string(str))
 	})
 	r.Run(":3000")
-
-	// wait for signal to exit
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	<-sigChan
-
-	// Gracefully stop the consumer.
-	consumer_sign.Stop()
-	consumer_mean.Stop()
-	consumer_variance.Stop()
-	consumer_maxmin.Stop()
 }

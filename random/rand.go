@@ -1,12 +1,11 @@
 package main
 
 import (
-	"encoding/binary"
 	"log"
-	"math"
 	"math/rand"
 	"time"
 
+	"github.com/m1m0ry/mom/mq"
 	"github.com/nsqio/go-nsq"
 )
 
@@ -15,28 +14,14 @@ func generateNumber(a float64, b float64) float64 {
 	return rand.NormFloat64()*b + a
 }
 
-//Float64ToByte Float64转byte
-func Float64ToByte(float float64) []byte {
-	bits := math.Float64bits(float)
-	bytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(bytes, bits)
-	return bytes
-}
-
-//ByteToFloat64 byte转Float64
-func ByteToFloat64(bytes []byte) float64 {
-	bits := binary.LittleEndian.Uint64(bytes)
-	return math.Float64frombits(bits)
-}
-
 func main() {
 
 	//初始化生产者
-	config := nsq.NewConfig()
-	producer, err := nsq.NewProducer("127.0.0.1:4150", config)
+	producer, err := mq.NewMessageQueue(mq.MessageQueueConfig{})
 	if err != nil {
 		log.Fatal(err)
 	}
+	producer.Run()
 
 	//主题 rand
 	topicName := "rand"
@@ -51,10 +36,10 @@ func main() {
 		}
 	}()
 
-	//异步发送消息 (byte数组)
+	//异步发送消息
 	for {
 		num := generateNumber(20, 10)
-		err := producer.PublishAsync(topicName, Float64ToByte(num), doChan)
+		err := producer.PubAsync(topicName, num, doChan)
 		if err != nil {
 			log.Fatal("could not pulish:", err)
 		}

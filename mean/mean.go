@@ -1,13 +1,13 @@
 package main
 
 import (
-	"encoding/binary"
+	"encoding/json"
 	"log"
-	"math"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/m1m0ry/mom/mq"
 	"github.com/nsqio/go-nsq"
 )
 
@@ -20,59 +20,37 @@ var mean float64
 var sum float64
 var mean_chan chan float64
 
-type myMessageHandler struct{}
-
-//Float64ToByte Float64转byte
-func Float64ToByte(float float64) []byte {
-	bits := math.Float64bits(float)
-	bytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(bytes, bits)
-	return bytes
-}
-
-//ByteToFloat64 byte转Float64
-func ByteToFloat64(bytes []byte) float64 {
-	bits := binary.LittleEndian.Uint64(bytes)
-	return math.Float64frombits(bits)
-}
-
-func (h *myMessageHandler) processMessage(m []byte) error {
-	num := ByteToFloat64(m)
-
-	if len(globalNums) > N {
-		old := globalNums[0]
-		globalNums = globalNums[1:]
-		mean = mean + (num-old)/N
-	} else {
-		sum += num
-		mean = sum / (float64(len(globalNums)) + 1)
-	}
-
-	mean_chan <- mean
-
-	globalNums = append(globalNums, num)
-
-	return nil
-}
-
-// HandleMessage implements the Handler interface.
-func (h *myMessageHandler) HandleMessage(m *nsq.Message) error {
-	if len(m.Body) == 0 {
-		return nil
-	}
-
-	err := h.processMessage(m.Body)
-	return err
-}
-
 func main() {
 
-	//初始化生产者
-	config_p := nsq.NewConfig()
-	producer, err := nsq.NewProducer("127.0.0.1:4150", config_p)
+	mq, err := mq.NewMessageQueue(mq.MessageQueueConfig{
+		SupportedTopics: []string{"rand"},
+		Channel:         "mean",
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	mq.Sub("rand", func(resp []byte) {
+		var num float64
+		err := json.Unmarshal(resp, &num)
+		if err != nil {
+			log.Fatal("unmarshal err: ", err)
+		}
+
+		if len(globalNums) > N {
+			old := globalNums[0]
+			globalNums = globalNums[1:]
+			mean = mean + (num-old)/N
+		} else {
+			sum += num
+			mean = sum / (float64(len(globalNums)) + 1)
+		}
+
+		mean_chan <- mean
+		globalNums = append(globalNums, num)
+	})
+
+	mq.Run()
 
 	//处理异步发送的返回状态
 	doChan := make(chan *nsq.ProducerTransaction)
@@ -89,32 +67,18 @@ func main() {
 	go func() {
 		//异步发送消息 (byte数组)
 		for {
-			err := producer.PublishAsync("mean", Float64ToByte(<-mean_chan), doChan)
+			err := mq.PubAsync("mean", <-mean_chan, doChan)
 			if err != nil {
 				log.Fatal("could not pulish:", err)
 			}
 		}
 	}()
 
-	// Instantiate a consumer that will subscribe to the provided channel.
-	config_c := nsq.NewConfig()
-	consumer, err := nsq.NewConsumer("rand", "mean", config_c)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	consumer.AddHandler(&myMessageHandler{})
-	err = consumer.ConnectToNSQLookupd("localhost:4161")
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// wait for signal to exit
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 
-	// Gracefully stop the consumer.
-	consumer.Stop()
-	producer.Stop()
+	mq.StopProducer()
+	mq.StopConsumer("rand")
 }

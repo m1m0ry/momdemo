@@ -12,7 +12,7 @@ type MessageQueueConfig struct {
 	NsqAddr         string
 	NsqLookupdAddr  string
 	SupportedTopics []string
-	channel         string
+	Channel         string
 }
 
 type MessageQueue struct {
@@ -28,8 +28,8 @@ func NewMessageQueue(config MessageQueueConfig) (mq *MessageQueue, err error) {
 	if config.NsqLookupdAddr == "" {
 		config.NsqLookupdAddr = "localhost:4161"
 	}
-	if config.channel == "" {
-		config.channel = "default"
+	if config.Channel == "" {
+		config.Channel = "default"
 	}
 
 	producer, err := initProducer(config.NsqAddr)
@@ -38,8 +38,8 @@ func NewMessageQueue(config MessageQueueConfig) (mq *MessageQueue, err error) {
 	}
 	consumers := make(map[string]*nsq.Consumer)
 	for _, topic := range config.SupportedTopics {
-		nsq.Register(topic, config.channel)
-		consumers[topic], err = initConsumer(topic, config.channel, config.NsqAddr)
+		nsq.Register(topic, config.Channel)
+		consumers[topic], err = initConsumer(topic, config.Channel, config.NsqAddr)
 		if err != nil {
 			return
 		}
@@ -51,6 +51,7 @@ func NewMessageQueue(config MessageQueueConfig) (mq *MessageQueue, err error) {
 	}, nil
 }
 
+//连接nsq
 func (mq *MessageQueue) Run() {
 	for _, c := range mq.consumers {
 		// c.ConnectToNSQLookupd(mq.config.NsqLookupdAddr)
@@ -93,15 +94,29 @@ func (mq *MessageQueue) PubAsync(name string, data interface{}, doneChan chan *n
 type Messagehandler func(v []byte)
 
 //接受消息
-func (mq *MessageQueue) Sub(name string, handler Messagehandler) (err error) {
-	v, ok := mq.consumers[name]
+func (mq *MessageQueue) Sub(topic string, handler Messagehandler) (err error) {
+	v, ok := mq.consumers[topic]
 	if !ok {
-		err = fmt.Errorf("No such topic: " + name)
+		err = fmt.Errorf("No such topic: " + topic)
 		return
 	}
 	v.AddHandler(nsq.HandlerFunc(func(message *nsq.Message) error {
 		handler(message.Body)
 		return nil
 	}))
+	return nil
+}
+
+func (mq *MessageQueue) StopProducer() {
+	mq.producer.Stop()
+}
+
+func (mq *MessageQueue) StopConsumer(topic string) (err error) {
+	v, ok := mq.consumers[topic]
+	if !ok {
+		err = fmt.Errorf("No such topic: " + topic)
+		return
+	}
+	v.Stop()
 	return nil
 }
