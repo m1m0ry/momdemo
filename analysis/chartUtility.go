@@ -28,73 +28,51 @@ func rand(resp []byte) {
 	var num float64
 	err := json.Unmarshal(resp, &num)
 	if err != nil {
-		log.Printf("rand error decoding sakura response: %v", err)
-		if e, ok := err.(*json.SyntaxError); ok {
-			log.Printf("syntax error at byte offset %d", e.Offset)
+		if err != nil {
+			log.Fatal("unmarshal err: ", err)
 		}
-		log.Printf("sakura response: %q", resp)
-	} else {
-		if len(Data.Datas) > N {
-			Data.Datas = Data.Datas[1:]
-		}
-		Data.Datas = append(Data.Datas, num)
 	}
+	if len(Data.Datas) > N {
+		Data.Datas = Data.Datas[1:]
+	}
+	Data.Datas = append(Data.Datas, num)
 }
 
 func variance(resp []byte) {
 	var num float64
 	err := json.Unmarshal(resp, &num)
 	if err != nil {
-		log.Printf("variance error decoding sakura response: %v", err)
-		if e, ok := err.(*json.SyntaxError); ok {
-			log.Printf("syntax error at byte offset %d", e.Offset)
+		if err != nil {
+			log.Fatal("unmarshal err: ", err)
 		}
-		log.Printf("sakura response: %q", resp)
-	} else {
-		Data.Variance = num
 	}
+	Data.Variance = num
 }
 
 func mean(resp []byte) {
 	var num float64
 	err := json.Unmarshal(resp, &num)
 	if err != nil {
-		log.Printf("mean error decoding sakura response: %v", err)
-		if e, ok := err.(*json.SyntaxError); ok {
-			log.Printf("syntax error at byte offset %d", e.Offset)
+		if err != nil {
+			log.Fatal("unmarshal err: ", err)
 		}
-		log.Printf("sakura response: %q", resp)
-	} else {
-		Data.Mean = num
 	}
+	Data.Mean = num
 }
 
 func maxmin(resp []byte) {
 	var maxmin map[string]float64
 	err := json.Unmarshal(resp, &maxmin)
 	if err != nil {
-		log.Printf("maxmin error decoding sakura response: %v", err)
-		if e, ok := err.(*json.SyntaxError); ok {
-			log.Printf("syntax error at byte offset %d", e.Offset)
+		if err != nil {
+			log.Fatal("unmarshal err: ", err)
 		}
-		log.Printf("sakura response: %q", resp)
-	} else {
-		Data.Max = maxmin["max"]
-		Data.Min = maxmin["min"]
 	}
+	Data.Max = maxmin["max"]
+	Data.Min = maxmin["min"]
 }
 
 func Init() {
-
-	file, err := os.OpenFile("info.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal("cant open log: ", err)
-	}
-	defer file.Close()
-
-	log.SetOutput(file)
-	log.SetPrefix("chart init(): ")
-
 	mq, err := mq.NewMessageQueue(mq.MessageQueueConfig{
 		SupportedTopics: []string{"rand", "mean", "variance", "maxmin"},
 		Channel:         "chart",
