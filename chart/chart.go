@@ -37,6 +37,7 @@ func websocketapi(c *gin.Context) {
 
 func main() {
 
+	//初始化数据接受
 	go analysis.Init()
 
 	r := gin.Default()

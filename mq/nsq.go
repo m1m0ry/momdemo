@@ -107,10 +107,12 @@ func (mq *MessageQueue) Sub(topic string, handler Messagehandler) (err error) {
 	return nil
 }
 
+//停止生产者
 func (mq *MessageQueue) StopProducer() {
 	mq.producer.Stop()
 }
 
+//停止消费者
 func (mq *MessageQueue) StopConsumer(topic string) (err error) {
 	v, ok := mq.consumers[topic]
 	if !ok {
